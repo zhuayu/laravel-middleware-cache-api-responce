@@ -10,6 +10,9 @@
 2. API Request 时候读取 Cache
 3. 如果有直接返回，如果没有获取数据放到 Cache 里再返回数据
 
+## 升级
+支持 Tag 缓存但是要在 Redis 环境下使用，这样便利于之后主动清除缓存。
+
 ## 用法
 
 1. 创建 Laravel MiddleWare
