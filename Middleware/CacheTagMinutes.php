@@ -18,6 +18,7 @@ class CacheTagMinutes
     protected $responseCache;
     protected $fromCache = 1;
     protected $minutes = 10;
+    protected $refleshKey = 'reflesh';
 
     /**
      * Handle an incoming request.
@@ -30,6 +31,7 @@ class CacheTagMinutes
     public function handle(Request $request, Closure $next, $minutes = 10)
     {
         $this->defaultVarible($request, $next, $minutes);
+        $this->clearCacheWithReflesh();
         $this->rememberResponseCache();
         $datas = json_decode($this->responseCache['content'], true);
         $response = response($datas);
@@ -41,8 +43,8 @@ class CacheTagMinutes
     {
         $this->request = $request;
         $this->next = $next;
-        $this->cacheKey = $this->getCacheKey($request);
-        $this->cacheTag = $this->getCacheTag($request);
+        $this->cacheKey = $this->getCacheKey();
+        $this->cacheTag = $this->getCacheTag();
         $this->minutes = intval($minutes);
     }
 
@@ -55,6 +57,7 @@ class CacheTagMinutes
             function () {
                 $this->fromCache = 0;
                 $response = ($this->next)($this->request);
+                \Log::info('new');
                 return [
                     'content' => $response->getContent(),
                     'cacheExpireAt' => Carbon::now()->addMinutes($this->minutes)->format('Y-m-d H:i:s T'),
@@ -64,17 +67,20 @@ class CacheTagMinutes
         return $this->responseCache;
     }
 
-    protected function getCacheKey($request) {
-        $url = $request->url();
-        $queryParams = $request->query();
+    protected function getCacheKey() {
+        $url = $this->request->url();
+        $queryParams = $this->request->query();
+        if($this->hasReflesh()){
+            unset($queryParams[$this->refleshKey]);
+        }
         ksort($queryParams);
         $queryString = http_build_query($queryParams);
         $fullUrl = "{$url}?{$queryString}";
         return md5($fullUrl);
     }
 
-    protected function getCacheTag($request) {
-        return md5($request->path());
+    protected function getCacheTag() {
+        return md5($this->request->path());
     }
 
     protected function addResponseHeader($response) {
@@ -86,7 +92,18 @@ class CacheTagMinutes
         $response->headers->add($headers);
     }
 
+    protected function clearCacheWithReflesh() {
+        if($this->hasReflesh()) {
+            $this->deleteWithTag();
+        }
+    }
+
     protected function deleteWithTag() {
         Cache::tags($this->cacheTag)->flush();
+    }
+
+    protected function hasReflesh() {
+        $queryParams = $this->request->query();
+        return isset($queryParams[$this->refleshKey]);
     }
 }
